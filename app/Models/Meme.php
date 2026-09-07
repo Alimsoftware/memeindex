@@ -26,18 +26,26 @@ class Meme extends Model
         'published_at',
     ];
 
+    protected static function booted(): void
+    {
+        static::creating(function (Meme $meme) {
+            if (empty($meme->slug)) {
+                $meme->slug = Str::slug($meme->title);
+            }
+        });
+    }
+
     protected $casts = [
         'is_gif' => 'boolean',
         'moderated_at' => 'datetime',
         'published_at' => 'datetime',
     ];
 
-    public function user(): BelongsTo
+    public function user()
     {
         return $this->belongsTo(User::class);
     }
-
-    public function moderator(): BelongsTo
+    public function moderator()
     {
         return $this->belongsTo(User::class, 'moderated_by');
     }
