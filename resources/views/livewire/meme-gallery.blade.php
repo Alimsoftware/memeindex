@@ -31,11 +31,11 @@
                     </h3>
                     {{-- Botões de Votação --}}
                     <div class="actions my-3">
-                        <button type="button" class="action" wire:click="vote({{ $meme->id }}, 'upvote')">
+                        <button type="button" class="chip cyan" wire:click="vote({{ $meme->id }}, 'upvote')">
                             ▲ {{ $meme->upvotes_count }}
                         </button>
 
-                        <button type="button" class="action pink" wire:click="vote({{ $meme->id }}, 'downvote')">
+                        <button type="button" class="chip pink" wire:click="vote({{ $meme->id }}, 'downvote')">
                             ▼ {{ $meme->downvotes_count }}
                         </button>
                     </div>

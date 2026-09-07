@@ -243,6 +243,21 @@ main {
     font-weight: 700;
 }
 
+.chip.cyan {
+    color: var(--cyan);
+}
+
+.chip.pink {
+    color: var(--pink);
+}
+
+.chip.pink:hover {
+    color: var(--pink);
+    border-color: var(--pink);
+    background: rgba(255, 0, 85, 0.12);
+    box-shadow: var(--glow-pink);
+}
+
 .chip:hover,
 .chip.active {
     border-color: var(--cyan);
