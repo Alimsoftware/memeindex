@@ -4,6 +4,8 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use App\Models\Vote;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Meme extends Model
 {
@@ -48,5 +50,22 @@ class Meme extends Model
     public function moderator()
     {
         return $this->belongsTo(User::class, 'moderated_by');
+    }
+
+
+
+    public function votes(): HasMany
+    {
+        return $this->hasMany(Vote::class);
+    }
+
+    public function getUpvotesCountAttribute(): int
+    {
+        return $this->votes()->where('vote_type', 'upvote')->count();
+    }
+
+    public function getDownvotesCountAttribute(): int
+    {
+        return $this->votes()->where('vote_type', 'downvote')->count();
     }
 }
