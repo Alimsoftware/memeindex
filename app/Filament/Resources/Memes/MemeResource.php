@@ -53,7 +53,9 @@ class MemeResource extends Resource
                 FileUpload::make('image_path')
                     ->label('Imagem do Meme')
                     ->image()
+                    ->disk('public')
                     ->directory('memes')
+                    ->visibility('public') // Marca permissão de leitura
                     ->required(),
 
                 Select::make('status')
