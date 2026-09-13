@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Favorite;
 use Filament\Models\Contracts\FilamentUser;
 use Filament\Panel;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -72,5 +73,10 @@ class User extends Authenticatable implements FilamentUser
     public function canPostDirectly(): bool
     {
         return $this->can_post_without_moderation_at !== null || in_array($this->role, ['moderator', 'admin']);
+    }
+
+    public function favorites(): HasMany
+    {
+        return $this->hasMany(Favorite::class);
     }
 }

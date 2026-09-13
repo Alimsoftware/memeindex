@@ -15,7 +15,7 @@ return new class extends Migration
             $table->id();
             $table->foreignId('user_id')->constrained()->onDelete('cascade');
             $table->foreignId('meme_id')->constrained()->onDelete('cascade');
-            $table->enum('reason', ['inappropriate', 'offensive', 'spam', 'copyright', 'other']);
+            $table->enum('reason', ['inappropriate', 'duplicated', 'offensive', 'spam', 'copyright', 'other']);
             $table->text('comment')->nullable();
             $table->enum('status', ['pending', 'reviewed', 'dismissed'])->default('pending');
             $table->timestamps();

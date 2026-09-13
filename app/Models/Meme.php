@@ -2,10 +2,15 @@
 
 namespace App\Models;
 
+
+use App\Models\Vote;
+use App\Models\Comment;
+use App\Models\Favorite;
+use App\Models\Report;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
-use App\Models\Vote;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Str;
 
 class Meme extends Model
 {
@@ -59,6 +64,15 @@ class Meme extends Model
         return $this->hasMany(Vote::class);
     }
 
+    public function comments(): HasMany
+    {
+        // Retorna apenas comentários raiz, trazendo os filhos (respostas) ordenados
+        return $this->hasMany(Comment::class)
+            ->whereNull('parent_id')
+            ->with(['user', 'children.user'])
+            ->latest();
+    }
+
     public function getUpvotesCountAttribute(): int
     {
         return $this->votes()->where('vote_type', 'upvote')->count();
@@ -67,5 +81,22 @@ class Meme extends Model
     public function getDownvotesCountAttribute(): int
     {
         return $this->votes()->where('vote_type', 'downvote')->count();
+    }
+
+    public function favorites(): HasMany
+    {
+        return $this->hasMany(Favorite::class);
+    }
+
+    public function isFavoritedBy(?User $user): bool
+    {
+        if (!$user)
+            return false;
+        return $this->favorites()->where('user_id', $user->id)->exists();
+    }
+
+    public function reports(): HasMany
+    {
+        return $this->hasMany(Report::class);
     }
 }

@@ -5,7 +5,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="theme-color" content="#05050a">
-    <meta name="description" content="MemeIndex BR — índice pesquisável de memes, imagens e vídeos.">
+    <meta name="description" content="MemeIndex BR — índice pesquisável de memes.">
 
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{{ $title ?? 'MemeIndex - O Seu Índice de Memes' }}</title>
@@ -21,8 +21,8 @@
         <div class="header-inner">
             <a class="brand" href="#">MemeIndex</a>
             <nav class="nav" aria-label="Navegação">
-                <a href="/">MemeIndex</a>
-                <a href="/admin">Painel Admin</a>
+                <a href="/">Inicio</a>
+                <!--a href="/admin">Painel Admin</a-->
                 <a href="#sugestao">Sugerir</a>
                 <a href="#footer">Contato</a>
             </nav>
