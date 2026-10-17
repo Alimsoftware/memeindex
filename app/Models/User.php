@@ -52,7 +52,8 @@ class User extends Authenticatable implements FilamentUser
      */
     public function canAccessPanel(Panel $panel): bool
     {
-        return true;
+        // com cadastro público, só equipe acessa o admin
+        return in_array($this->role, ['moderator', 'admin'], true);
     }
 
     public function addXp(int $amount)

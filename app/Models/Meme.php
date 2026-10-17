@@ -73,6 +73,12 @@ class Meme extends Model
             ->latest();
     }
 
+    // Todos os comentários (raiz + respostas), para o chat e a contagem total.
+    public function allComments(): HasMany
+    {
+        return $this->hasMany(Comment::class);
+    }
+
     public function getUpvotesCountAttribute(): int
     {
         return $this->votes()->where('vote_type', 'upvote')->count();

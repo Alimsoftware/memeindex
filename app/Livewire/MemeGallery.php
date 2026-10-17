@@ -8,6 +8,8 @@ use App\Models\Vote;
 use App\Models\User;
 use App\Models\Report;
 use App\Models\Favorite;
+use Livewire\Attributes\On;
+use Livewire\Attributes\Url;
 use Livewire\Component;
 use Livewire\WithPagination;
 
@@ -15,6 +17,7 @@ class MemeGallery extends Component
 {
     use WithPagination;
 
+    #[Url(as: 'q', except: '')]
     public string $search = '';
     public string $filter = 'latest';
     public string $newComment = '';
@@ -22,19 +25,52 @@ class MemeGallery extends Component
     public bool $showModal = false;
     public ?Meme $selectedMeme = null;
 
+    public ?int $replyingTo = null;
+
     public bool $showReportModal = false;
     public ?int $reportingMemeId = null;
     public string $reportReason = 'inappropriate';
     public string $reportDescription = '';
 
+    public string $category = '';
+    public string $format = ''; // '', 'gif' ou 'image'
+
     public function updatingSearch(): void
     {
         $this->resetPage();
     }
-    public function setFilter(string $filter): void // <- Adicione este método
+
+    // A busca fica no header (fora deste componente) e avisa por evento.
+    #[On('search-changed')]
+    public function setSearch(string $value = ''): void
+    {
+        $this->search = mb_substr(trim($value), 0, 100);
+        $this->resetPage();
+    }
+
+    public function setFilter(string $filter): void
     {
         $this->filter = $filter;
         $this->resetPage();
+    }
+
+    public function setCategory(string $category): void
+    {
+        $this->category = $this->category === $category ? '' : $category;
+        $this->resetPage();
+    }
+
+    public function setFormat(string $format): void
+    {
+        $this->format = $this->format === $format ? '' : $format;
+        $this->resetPage();
+    }
+
+    public function clearFilters(): void
+    {
+        $this->reset('search', 'category', 'format', 'filter');
+        $this->resetPage();
+        $this->dispatch('search-cleared');
     }
 
     public function openModal(?int $memeId = null): void
@@ -43,10 +79,7 @@ class MemeGallery extends Component
             return;
         }
 
-        $this->selectedMeme = Meme::with([
-            'user',
-            'comments' => fn($query) => $query->whereNull('parent_id')->with(['user', 'children.user'])->latest(),
-        ])->find($memeId);
+        $this->selectedMeme = Meme::with('user')->find($memeId);
 
         if ($this->selectedMeme) {
             $this->showModal = true;
@@ -58,6 +91,7 @@ class MemeGallery extends Component
         $this->showModal = false;
         $this->selectedMeme = null;
         $this->newComment = '';
+        $this->cancelReply();
     }
 
     public function vote(int $memeId, string $type): void
@@ -101,7 +135,7 @@ class MemeGallery extends Component
         }
     }
 
-    public function addComment(?int $parentId = null): void
+    public function addComment(): void
     {
         if (!auth()->check()) {
             $this->dispatch('notify', message: 'Você precisa estar logado para comentar.');
@@ -116,6 +150,11 @@ class MemeGallery extends Component
             return;
         }
 
+        // O id do pai vem do cliente: só vale se for deste meme.
+        $parentId = $this->replyingTo
+            ? Comment::where('meme_id', $this->selectedMeme->id)->whereKey($this->replyingTo)->value('id')
+            : null;
+
         Comment::create([
             'user_id' => auth()->id(),
             'meme_id' => $this->selectedMeme->id,
@@ -125,9 +164,37 @@ class MemeGallery extends Component
         ]);
 
         $this->newComment = '';
+        $this->replyingTo = null;
+        $this->dispatch('chat-sent');
+    }
 
-        // Recarrega o modal mantendo a estrutura de parent/children
-        $this->openModal($this->selectedMeme->id);
+    public function startReply(int $commentId): void
+    {
+        $this->replyingTo = $commentId;
+    }
+
+    public function cancelReply(): void
+    {
+        $this->replyingTo = null;
+    }
+
+    public function deleteComment(int $commentId): void
+    {
+        if (!$this->selectedMeme) {
+            return;
+        }
+
+        $deleted = Comment::where('id', $commentId)
+            ->where('meme_id', $this->selectedMeme->id)
+            ->where('user_id', auth()->id())
+            ->delete();
+
+        if ($deleted) {
+            $this->dispatch('notify', message: 'Mensagem apagada.');
+            if ($this->replyingTo === $commentId) {
+                $this->replyingTo = null;
+            }
+        }
     }
 
     public function toggleFavorite(int $memeId): void
@@ -216,8 +283,14 @@ class MemeGallery extends Component
         $query = Meme::query()
             ->where('status', 'approved')
             ->with('user')
+            ->withCount('allComments as comments_count')
             ->withExists(['favorites as is_favorited' => fn($q) => $q->where('user_id', $userId)])
-            ->when($this->search !== '', fn($q) => $q->where('title', 'like', "%{$this->search}%"));
+            ->when($this->search !== '', fn($q) => $q->where(
+                fn($w) => $w->where('title', 'like', "%{$this->search}%")
+                    ->orWhere('description', 'like', "%{$this->search}%")
+            ))
+            ->when($this->category !== '', fn($q) => $q->where('category', $this->category))
+            ->when($this->format !== '', fn($q) => $q->where('is_gif', $this->format === 'gif'));
 
         match ($this->filter) {
             'popular' => $query->withCount(['votes as upvotes_count' => fn($q) => $q->where('vote_type', 'upvote')])->orderByDesc('upvotes_count'),
@@ -225,7 +298,13 @@ class MemeGallery extends Component
             default => $query->latest(),
         };
 
+        $messages = $this->showModal && $this->selectedMeme
+            ? Comment::with(['user', 'parent.user'])->where('meme_id', $this->selectedMeme->id)->oldest()->oldest('id')->get()
+            : collect();
+
         return view('livewire.meme-gallery', [
+            'messages' => $messages,
+            'categories' => Meme::where('status', 'approved')->distinct()->orderBy('category')->pluck('category'),
             'memes' => $query->paginate(12),
         ]);
     }
