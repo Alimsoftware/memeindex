@@ -22,6 +22,17 @@ class Emojis
             ->all();
     }
 
+    public static function name(int $n): string
+    {
+        return config("emojis.names.{$n}") ?: "emoji {$n}";
+    }
+
+    /** Lista para o seletor: [['n' => 1, 'name' => 'sorriso'], ...]. */
+    public static function items(): array
+    {
+        return array_map(fn($n) => ['n' => $n, 'name' => self::name($n)], self::ids());
+    }
+
     /**
      * Escapa o texto e troca ":eN:" por <img>. Só vira imagem se o arquivo existir;
      * qualquer outra coisa continua texto escapado (sem brecha para HTML).
@@ -38,8 +49,8 @@ class Emojis
                 return $m[0];
             }
 
-            return '<img class="emoji" src="' . "/emojis/expression_{$n}.png" . '" alt="emoji ' . $n
-                . '" width="24" height="24" loading="lazy" decoding="async">';
+            return '<img class="emoji" src="' . "/emojis/expression_{$n}.png" . '" alt="' . e(self::name($n))
+                . '" title="' . e(self::name($n)) . '" width="24" height="24" loading="lazy" decoding="async">';
         }, e($text));
 
         return new HtmlString($html);

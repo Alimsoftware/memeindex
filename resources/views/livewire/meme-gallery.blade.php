@@ -268,7 +268,10 @@
 
                         <form wire:submit.prevent="addComment" class="chat-input" x-data="{
                                 open: false,
-                                ids: @js(\App\Support\Emojis::ids()),
+                                items: @js(\App\Support\Emojis::items()),
+                                q: '',
+                                norm(s) { return s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase(); },
+                                get list() { const q = this.norm(this.q.trim()); return q ? this.items.filter(i => this.norm(i.name).includes(q)) : this.items; },
                                 insert(n) {
                                     const i = this.$refs.msg, t = ':e' + n + ':';
                                     const s = i.selectionStart ?? i.value.length, e = i.selectionEnd ?? s;
@@ -280,13 +283,18 @@
                             }" @click.outside="open = false"
                             @keydown.escape="if (open) { $event.stopPropagation(); open = false; $refs.toggle.focus(); }">
                             <div class="emoji-picker" x-show="open" x-cloak role="group" aria-label="Escolher emoji">
-                                <template x-for="n in ids" :key="n">
-                                    <button type="button" class="emoji-btn" @click="insert(n)" :aria-label="'Emoji ' + n">
-                                        <img :src="'/emojis/expression_' + n + '.png'" alt="" width="28" height="28" loading="lazy">
-                                    </button>
-                                </template>
+                                <input type="search" class="emoji-search" x-model="q" x-ref="search" placeholder="Buscar emoji"
+                                    aria-label="Buscar emoji" autocomplete="off" @keydown.enter.prevent>
+                                <div class="emoji-grid">
+                                    <template x-for="i in list" :key="i.n">
+                                        <button type="button" class="emoji-btn" @click="insert(i.n)" :aria-label="i.name" :title="i.name">
+                                            <img :src="'/emojis/expression_' + i.n + '.png'" alt="" width="28" height="28" loading="lazy">
+                                        </button>
+                                    </template>
+                                </div>
+                                <p class="emoji-none" x-show="list.length === 0">Nenhum emoji com esse nome.</p>
                             </div>
-                            <button type="button" class="emoji-toggle" x-ref="toggle" @click="open = !open" :aria-expanded="open"
+                            <button type="button" class="emoji-toggle" x-ref="toggle" @click="open = !open; if (open) $nextTick(() => $refs.search.focus())" :aria-expanded="open"
                                 aria-label="Emojis">
                                 <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9" /><path d="M8.5 14.5a4.5 4.5 0 0 0 7 0" /><path d="M9 9.5h.01M15 9.5h.01" stroke-width="2.4" /></svg>
                             </button>

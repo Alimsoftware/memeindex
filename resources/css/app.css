@@ -1457,18 +1457,51 @@ textarea.field {
     right: 8px;
     bottom: calc(100% + 4px);
     z-index: 10;
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(40px, 1fr));
-    gap: 2px;
-    max-height: 190px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    max-height: 250px;
     padding: 8px;
-    overflow-y: auto;
     background: var(--c-head);
     border: 1px solid var(--border);
     border-radius: var(--c-radius);
     box-shadow: var(--shadow);
+}
+
+.emoji-search {
+    flex: none;
+    height: 36px;
+    padding: 0 12px;
+    background: var(--c-input);
+    color: var(--text);
+    border: 1px solid transparent;
+    border-radius: var(--c-radius);
+    outline: 0;
+}
+
+.emoji-search:focus {
+    border-color: var(--yellow);
+}
+
+.emoji-search::placeholder {
+    color: var(--c-muted);
+}
+
+.emoji-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(40px, 1fr));
+    gap: 2px;
+    min-height: 0;
+    overflow-y: auto;
     scrollbar-width: thin;
     scrollbar-color: var(--border) transparent;
+}
+
+.emoji-none {
+    margin: 4px 0;
+    color: var(--c-muted);
+    font-size: 0.85rem;
+    text-align: center;
 }
 
 .emoji-btn {
