@@ -79,7 +79,8 @@ class MemeGallery extends Component
             return;
         }
 
-        $this->selectedMeme = Meme::with('user')->find($memeId);
+        // o id vem do cliente: só abre meme publicado
+        $this->selectedMeme = Meme::with('user')->where('status', 'approved')->find($memeId);
 
         if ($this->selectedMeme) {
             $this->showModal = true;
@@ -106,7 +107,7 @@ class MemeGallery extends Component
         }
 
         $userId = auth()->id();
-        $meme = Meme::find($memeId);
+        $meme = Meme::where('status', 'approved')->find($memeId);
 
         if (!$meme) {
             return;
@@ -204,6 +205,10 @@ class MemeGallery extends Component
             return;
         }
 
+        if (!Meme::where('status', 'approved')->whereKey($memeId)->exists()) {
+            return;
+        }
+
         $userId = auth()->id();
 
         $favorite = Favorite::where('meme_id', $memeId)
@@ -245,7 +250,7 @@ class MemeGallery extends Component
 
     public function submitReport(): void
 {
-    if (!auth()->check() || !$this->reportingMemeId) {
+    if (!auth()->check() || !Meme::where('status', 'approved')->whereKey($this->reportingMemeId)->exists()) {
         return;
     }
 
@@ -283,7 +288,11 @@ class MemeGallery extends Component
         $query = Meme::query()
             ->where('status', 'approved')
             ->with('user')
-            ->withCount('allComments as comments_count')
+            ->withCount([
+                'allComments as comments_count',
+                'votes as upvotes_count' => fn($q) => $q->where('vote_type', 'upvote'),
+                'votes as downvotes_count' => fn($q) => $q->where('vote_type', 'downvote'),
+            ])
             ->withExists(['favorites as is_favorited' => fn($q) => $q->where('user_id', $userId)])
             ->when($this->search !== '', fn($q) => $q->where(
                 fn($w) => $w->where('title', 'like', "%{$this->search}%")
@@ -293,7 +302,7 @@ class MemeGallery extends Component
             ->when($this->format !== '', fn($q) => $q->where('is_gif', $this->format === 'gif'));
 
         match ($this->filter) {
-            'popular' => $query->withCount(['votes as upvotes_count' => fn($q) => $q->where('vote_type', 'upvote')])->orderByDesc('upvotes_count'),
+            'popular' => $query->orderByDesc('upvotes_count'),
             'favorites' => $query->whereHas('favorites', fn($q) => $q->where('user_id', $userId)),
             default => $query->latest(),
         };

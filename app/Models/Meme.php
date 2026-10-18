@@ -79,16 +79,6 @@ class Meme extends Model
         return $this->hasMany(Comment::class);
     }
 
-    public function getUpvotesCountAttribute(): int
-    {
-        return $this->votes()->where('vote_type', 'upvote')->count();
-    }
-
-    public function getDownvotesCountAttribute(): int
-    {
-        return $this->votes()->where('vote_type', 'downvote')->count();
-    }
-
     public function favorites(): HasMany
     {
         return $this->hasMany(Favorite::class);
