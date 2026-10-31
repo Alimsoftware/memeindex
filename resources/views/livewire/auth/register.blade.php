@@ -31,6 +31,16 @@
                 autocomplete="new-password">
         </div>
 
+        <div>
+            {{-- links em nova aba para não perder o que já foi digitado --}}
+            <label class="check">
+                <input type="checkbox" wire:model="terms">
+                <span>Tenho 16 anos ou mais e aceito os <a href="{{ route('terms') }}" target="_blank">Termos de uso</a>
+                    e a <a href="{{ route('privacy') }}" target="_blank">Política de privacidade</a>.</span>
+            </label>
+            @error('terms') <span class="field-error" role="alert">{{ $message }}</span> @enderror
+        </div>
+
         <button type="submit" class="btn-primary wide" wire:loading.attr="disabled" wire:target="register">
             <span wire:loading.remove wire:target="register">Criar conta</span>
             <span wire:loading wire:target="register">Criando…</span>

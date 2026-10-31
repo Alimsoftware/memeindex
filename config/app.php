@@ -83,6 +83,9 @@ return [
     // único usuário que pode excluir registros
     'owner_email' => env('OWNER_EMAIL'),
 
+    // canal público de privacidade, remoção de conteúdo e contato
+    'contact_email' => env('CONTACT_EMAIL'),
+
     'fallback_locale' => env('APP_FALLBACK_LOCALE', 'en'),
 
     'faker_locale' => env('APP_FAKER_LOCALE', 'en_US'),

@@ -31,6 +31,7 @@
                     para a fila da moderação.</li>
                 <li>Memes duplicados ou fora do escopo do arquivo podem ser rejeitados.</li>
             </ul>
+            <p>As regras completas estão nos <a href="{{ route('terms') }}">Termos de uso</a>.</p>
         </section>
 
         <section id="dmca" class="doc-section">
@@ -61,6 +62,9 @@
             <h2>Contato</h2>
             <p>Para dúvidas, sugestões ou qualquer assunto que não caiba no botão Reportar:</p>
             <ul class="doc-links">
+                @if(config('app.contact_email'))
+                    <li><a href="mailto:{{ config('app.contact_email') }}">{{ config('app.contact_email') }}</a></li>
+                @endif
                 <li><a href="https://twitter.com/SrAlisonMDL" target="_blank" rel="noopener noreferrer">Twitter</a></li>
                 <li><a href="https://www.instagram.com/alison_mdl/" target="_blank" rel="noopener noreferrer">Instagram</a></li>
                 <li><a href="https://www.facebook.com/SrAlisonMDL" target="_blank" rel="noopener noreferrer">Facebook</a></li>

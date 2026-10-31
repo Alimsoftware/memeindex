@@ -17,6 +17,7 @@ class Register extends Component
     public string $email = '';
     public string $password = '';
     public string $password_confirmation = '';
+    public bool $terms = false;
 
     protected function rules(): array
     {
@@ -24,6 +25,7 @@ class Register extends Component
             'name' => 'required|string|min:2|max:80',
             'email' => 'required|email|max:255|unique:users,email',
             'password' => 'required|string|min:8|max:100|confirmed',
+            'terms' => 'accepted',
         ];
     }
 
@@ -38,6 +40,7 @@ class Register extends Component
             'password.required' => 'Crie uma senha.',
             'password.min' => 'A senha precisa de pelo menos 8 caracteres.',
             'password.confirmed' => 'A confirmação não é igual à senha.',
+            'terms.accepted' => 'Para criar a conta, aceite os termos e a política de privacidade.',
         ];
     }
 

@@ -88,6 +88,8 @@
         <div class="footer-links">
             <a href="{{ route('about') }}">Sobre</a>
             <a href="{{ route('about') }}#dmca">DMCA</a>
+            <a href="{{ route('privacy') }}">Privacidade</a>
+            <a href="{{ route('terms') }}">Termos</a>
             <a href="https://twitter.com/SrAlisonMDL" target="_blank" rel="noopener noreferrer">Twitter</a>
             <a href="https://www.facebook.com/SrAlisonMDL" target="_blank" rel="noopener noreferrer">Facebook</a>
             <a href="https://www.instagram.com/alison_mdl/" target="_blank" rel="noopener noreferrer">Instagram</a>

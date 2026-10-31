@@ -16,6 +16,8 @@ Route::get('/', MemeGallery::class)->name('home');
 Route::get('/enviar', UploadMeme::class)->name('upload');
 Route::view('/sobre', 'about')->name('about');
 Route::redirect('/dmca', '/sobre#dmca');
+Route::view('/privacidade', 'privacy')->name('privacy');
+Route::view('/termos', 'terms')->name('terms');
 Route::get('/perfil', Profile::class)->middleware('auth')->name('profile');
 Route::get('/moderacao', Moderation::class)->middleware('auth')->name('moderation');
 
