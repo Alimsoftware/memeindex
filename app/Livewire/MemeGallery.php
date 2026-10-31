@@ -12,6 +12,7 @@ use App\Models\User;
 use Illuminate\Support\Facades\RateLimiter;
 use Livewire\Attributes\Computed;
 use Livewire\Attributes\On;
+use Livewire\Attributes\Locked;
 use Livewire\Attributes\Url;
 use Livewire\Component;
 use Livewire\WithPagination;
@@ -33,6 +34,8 @@ class MemeGallery extends Component
     public ?Meme $selectedMeme = null;
 
     public ?int $replyingTo = null;
+    // só o servidor altera (loadOlderMessages); vindo do cliente viraria DoS
+    #[Locked]
     public int $chatLimit = 100;
 
     public bool $showReportModal = false;
@@ -235,14 +238,15 @@ class MemeGallery extends Component
 
     public function deleteComment(int $commentId): void
     {
-        if (!$this->selectedMeme) {
+        if (!auth()->check() || !$this->selectedMeme) {
             return;
         }
 
         $query = Comment::where('id', $commentId)
             ->where('meme_id', $this->selectedMeme->id);
 
-        if (auth()->user()->role === 'user') {
+        // lista de permitidos: só moderador e admin apagam mensagens de outros
+        if (!in_array(auth()->user()->role, ['moderator', 'admin'], true)) {
             $query->where('user_id', auth()->id());
         }
 

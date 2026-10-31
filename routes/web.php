@@ -8,7 +8,6 @@ use App\Livewire\Moderation;
 use App\Livewire\Profile;
 use App\Livewire\UploadMeme;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Storage;
 
 Route::get('/', function () {
     return view('welcome');
@@ -32,14 +31,3 @@ Route::post('/sair', function () {
 
     return redirect()->route('home');
 })->middleware('auth')->name('logout');
-
-
-Route::get('/media/memes/{filename}', function ($filename) {
-    $path = 'memes/' . $filename;
-
-    if (!Storage::disk('public')->exists($path)) {
-        abort(404);
-    }
-
-    return response()->file(Storage::disk('public')->path($path));
-})->where('filename', '.*');
