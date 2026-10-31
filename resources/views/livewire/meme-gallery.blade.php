@@ -265,7 +265,11 @@
                                     Carregar mensagens anteriores
                                 </button>
                             @endif
-                            @php $prevDay = null; @endphp
+                            @php
+                                $prevDay = null;
+                                // mesma regra do deleteComment: moderador e admin apagam mensagens de outros
+                                $canModerate = in_array(auth()->user()?->role, ['moderator', 'admin'], true);
+                            @endphp
                             @forelse($messages as $msg)
                                 @php
                                     $day = $msg->created_at->toDateString();
@@ -308,7 +312,7 @@
                                             <div class="msg-tools">
                                                 <button type="button" class="link-btn"
                                                     wire:click="startReply({{ $msg->id }})">Responder</button>
-                                                @if($mine)
+                                                @if($mine || $canModerate)
                                                     <button type="button" class="link-btn danger"
                                                         wire:click="deleteComment({{ $msg->id }})"
                                                         wire:confirm="Apagar esta mensagem{{ $msg->parent_id ? '' : ' e suas respostas' }}?">Apagar</button>
