@@ -5,9 +5,12 @@ namespace App\Livewire;
 use App\Models\Comment;
 use App\Models\Meme;
 use App\Models\Vote;
-use App\Models\User;
 use App\Models\Report;
 use App\Models\Favorite;
+use App\Models\Share;
+use App\Models\User;
+use Illuminate\Support\Facades\RateLimiter;
+use Livewire\Attributes\Computed;
 use Livewire\Attributes\On;
 use Livewire\Attributes\Url;
 use Livewire\Component;
@@ -22,10 +25,15 @@ class MemeGallery extends Component
     public string $filter = 'latest';
     public string $newComment = '';
 
+    // link compartilhável: /?meme=slug abre o modal desse meme
+    #[Url(as: 'meme', except: '')]
+    public string $memeSlug = '';
+
     public bool $showModal = false;
     public ?Meme $selectedMeme = null;
 
     public ?int $replyingTo = null;
+    public int $chatLimit = 100;
 
     public bool $showReportModal = false;
     public ?int $reportingMemeId = null;
@@ -34,6 +42,16 @@ class MemeGallery extends Component
 
     public string $category = '';
     public string $format = ''; // '', 'gif' ou 'image'
+
+    public function mount(): void
+    {
+        if ($this->memeSlug === '') {
+            return;
+        }
+
+        $id = Meme::where('status', 'approved')->where('slug', $this->memeSlug)->value('id');
+        $id ? $this->openModal($id) : $this->memeSlug = '';
+    }
 
     public function updatingSearch(): void
     {
@@ -50,6 +68,10 @@ class MemeGallery extends Component
 
     public function setFilter(string $filter): void
     {
+        if ($filter === 'favorites' && !auth()->check()) {
+            $this->dispatch('notify', message: 'Faça login para ver seus favoritos.');
+            return;
+        }
         $this->filter = $filter;
         $this->resetPage();
     }
@@ -80,10 +102,19 @@ class MemeGallery extends Component
         }
 
         // o id vem do cliente: só abre meme publicado
-        $this->selectedMeme = Meme::with('user')->where('status', 'approved')->find($memeId);
+        $this->selectedMeme = Meme::with('user')
+            ->withCount([
+                'votes as upvotes_count' => fn($q) => $q->where('vote_type', 'upvote'),
+                'votes as downvotes_count' => fn($q) => $q->where('vote_type', 'downvote'),
+                'allComments as comments_count',
+            ])
+            ->where('status', 'approved')
+            ->find($memeId);
 
         if ($this->selectedMeme) {
             $this->showModal = true;
+            $this->chatLimit = 100;
+            $this->memeSlug = $this->selectedMeme->slug;
         }
     }
 
@@ -91,21 +122,31 @@ class MemeGallery extends Component
     {
         $this->showModal = false;
         $this->selectedMeme = null;
-        $this->newComment = '';
-        $this->cancelReply();
+        $this->reset('newComment', 'replyingTo', 'chatLimit', 'memeSlug');
+    }
+
+    public function loadOlderMessages(): void
+    {
+        $this->chatLimit += 100;
+        unset($this->chatMessages);
     }
 
     public function vote(int $memeId, string $type): void
     {
-        if (!in_array($type, ['upvote', 'downvote'])) {
+        if (!in_array($type, ['up', 'down']))
             return;
-        }
+
 
         if (!auth()->check()) {
             $this->dispatch('notify', message: 'Você precisa estar logado para votar.');
             return;
         }
 
+        if ($this->throttled('vote', 30, 60)) {
+            return;
+        }
+
+        $type .= 'vote'; // a coluna guarda 'upvote' / 'downvote'
         $userId = auth()->id();
         $meme = Meme::where('status', 'approved')->find($memeId);
 
@@ -131,8 +172,13 @@ class MemeGallery extends Component
             ]);
         }
 
+        auth()->user()->recalculateXp();
+        if ($meme->user_id !== $userId) {
+            $meme->user?->recalculateXp();
+        }
+
         if ($this->selectedMeme && $this->selectedMeme->id === $memeId) {
-            $this->selectedMeme->refresh();
+            $this->dispatch('$refresh');
         }
     }
 
@@ -140,6 +186,10 @@ class MemeGallery extends Component
     {
         if (!auth()->check()) {
             $this->dispatch('notify', message: 'Você precisa estar logado para comentar.');
+            return;
+        }
+
+        if ($this->throttled('comment', 10, 60)) {
             return;
         }
 
@@ -152,9 +202,11 @@ class MemeGallery extends Component
         }
 
         // O id do pai vem do cliente: só vale se for deste meme.
-        $parentId = $this->replyingTo
-            ? Comment::where('meme_id', $this->selectedMeme->id)->whereKey($this->replyingTo)->value('id')
-            : null;
+        $parentId = null;
+        if ($this->replyingTo) {
+            $parent = Comment::where('meme_id', $this->selectedMeme->id)->find($this->replyingTo);
+            $parentId = $parent?->id;
+        }
 
         Comment::create([
             'user_id' => auth()->id(),
@@ -163,9 +215,11 @@ class MemeGallery extends Component
             'content' => trim($this->newComment),
             'likes' => 0,
         ]);
+        auth()->user()->recalculateXp();
 
         $this->newComment = '';
         $this->replyingTo = null;
+        unset($this->chatMessages); // recalcula a lista
         $this->dispatch('chat-sent');
     }
 
@@ -185,12 +239,19 @@ class MemeGallery extends Component
             return;
         }
 
-        $deleted = Comment::where('id', $commentId)
-            ->where('meme_id', $this->selectedMeme->id)
-            ->where('user_id', auth()->id())
-            ->delete();
+        $query = Comment::where('id', $commentId)
+            ->where('meme_id', $this->selectedMeme->id);
+
+        if (auth()->user()->role === 'user') {
+            $query->where('user_id', auth()->id());
+        }
+
+        $authorId = (clone $query)->value('user_id');
+        $deleted = $query->delete();
 
         if ($deleted) {
+            User::find($authorId)?->recalculateXp();
+            unset($this->chatMessages); // recalcula a lista
             $this->dispatch('notify', message: 'Mensagem apagada.');
             if ($this->replyingTo === $commentId) {
                 $this->replyingTo = null;
@@ -202,6 +263,11 @@ class MemeGallery extends Component
     {
         if (!auth()->check()) {
             $this->dispatch('notify', message: 'Você precisa estar logado para favoritar.');
+            return;
+        }
+
+        // mesmo balde dos votos
+        if ($this->throttled('vote', 30, 60)) {
             return;
         }
 
@@ -225,7 +291,55 @@ class MemeGallery extends Component
         }
 
         if ($this->selectedMeme && $this->selectedMeme->id === $memeId) {
-            $this->selectedMeme->refresh();
+            $this->dispatch('$refresh');
+        }
+    }
+
+    // chamado ao copiar link ou compartilhar; visitante compartilha sem ganhar XP
+    public function shareMeme(int $memeId): void
+    {
+        if (!auth()->check() || !Meme::where('status', 'approved')->whereKey($memeId)->exists()) {
+            return;
+        }
+
+        $created = Share::insertOrIgnore([
+            'user_id' => auth()->id(),
+            'meme_id' => $memeId,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        if ($created) {
+            auth()->user()->recalculateXp();
+        }
+    }
+
+    // limite por usuário e ação; avisa e devolve true quando estourou
+    private function throttled(string $action, int $max, int $seconds): bool
+    {
+        $key = "{$action}:" . auth()->id();
+
+        if (RateLimiter::tooManyAttempts($key, $max)) {
+            $this->dispatch('notify', message: 'Calma! Espere ' . RateLimiter::availableIn($key) . 's para tentar de novo.');
+            return true;
+        }
+
+        RateLimiter::hit($key, $seconds);
+        return false;
+    }
+
+    // um por sessão e meme: baixar de novo não infla o número
+    public function countDownload(int $memeId): void
+    {
+        if (in_array($memeId, session('downloaded', []), true)) {
+            return;
+        }
+
+        // toBase: não mexe no updated_at do meme
+        $counted = Meme::where('status', 'approved')->whereKey($memeId)->toBase()->increment('downloads');
+
+        if ($counted) {
+            session()->push('downloaded', $memeId);
         }
     }
 
@@ -249,37 +363,78 @@ class MemeGallery extends Component
     }
 
     public function submitReport(): void
-{
-    if (!auth()->check() || !Meme::where('status', 'approved')->whereKey($this->reportingMemeId)->exists()) {
-        return;
-    }
+    {
+        if (!auth()->check() || !Meme::where('status', 'approved')->whereKey($this->reportingMemeId)->exists()) {
+            return;
+        }
 
-    $this->validate([
-        'reportReason' => 'required|in:inappropriate,duplicated,offensive,spam,copyright,other',
-        'reportDescription' => 'nullable|string|max:500',
-    ]);
+        $this->validate([
+            'reportReason' => 'required|in:' . implode(',', Report::REASONS),
+            'reportDescription' => 'nullable|string|max:500',
+        ]);
 
-    $existingReport = Report::where('user_id', auth()->id())
-        ->where('meme_id', $this->reportingMemeId)
-        ->exists();
+        $existingReport = Report::where('user_id', auth()->id())
+            ->where('meme_id', $this->reportingMemeId)
+            ->exists();
 
-    if ($existingReport) {
-        $this->dispatch('notify', message: 'Você já reportou este meme anteriormente.');
+        if ($existingReport) {
+            $this->dispatch('notify', message: 'Você já reportou este meme anteriormente.');
+            $this->closeReportModal();
+            return;
+        }
+
+        if ($this->throttled('report', 10, 3600)) {
+            return;
+        }
+
+        try {
+            Report::create([
+                'user_id' => auth()->id(),
+                'meme_id' => $this->reportingMemeId,
+                'reason' => $this->reportReason,
+                'comment' => trim($this->reportDescription), // Mapeado para a coluna 'comment'
+                'status' => 'pending',
+            ]);
+
+        } catch (\Illuminate\Database\QueryException $e) {
+            // MySQL/MariaDB: 23000 | PostgreSQL: 23505 | SQLite: 23000
+            if (in_array($e->getCode(), ['23000', '23505'])) {
+                $this->dispatch('notify', message: 'Você já reportou este meme.');
+                $this->closeReportModal();
+                return;
+            }
+            throw $e;
+        }
+        // ✅ Caminho de sucesso (só chega aqui se não houve exceção)
+        $this->dispatch('notify', message: 'Denúncia enviada com sucesso para a moderação.');
         $this->closeReportModal();
-        return;
     }
 
-    Report::create([
-        'user_id' => auth()->id(),
-        'meme_id' => $this->reportingMemeId,
-        'reason' => $this->reportReason,
-        'comment' => trim($this->reportDescription), // Mapeado para a coluna 'comment'
-        'status' => 'pending',
-    ]);
+    #[Computed]
+    public function chatMessages()
+    {
+        if (!$this->selectedMeme) {
+            return collect();
+        }
 
-    $this->dispatch('notify', message: 'Denúncia enviada com sucesso para a moderação.');
-    $this->closeReportModal();
-}
+        // as N mais recentes, devolvidas em ordem cronológica
+        return Comment::with(['user', 'parent.user'])
+            ->where('meme_id', $this->selectedMeme->id)
+            ->latest()
+            ->latest('id')
+            ->limit($this->chatLimit)
+            ->get()
+            ->reverse()
+            ->values();
+    }
+
+    #[Computed]
+    public function chatTotal(): int
+    {
+        return $this->selectedMeme
+            ? Comment::where('meme_id', $this->selectedMeme->id)->count()
+            : 0;
+    }
 
     public function render()
     {
@@ -293,7 +448,15 @@ class MemeGallery extends Component
                 'votes as upvotes_count' => fn($q) => $q->where('vote_type', 'upvote'),
                 'votes as downvotes_count' => fn($q) => $q->where('vote_type', 'downvote'),
             ])
-            ->withExists(['favorites as is_favorited' => fn($q) => $q->where('user_id', $userId)])
+            ->withExists([
+                'favorites as is_favorited' => function ($q) use ($userId) {
+                    if ($userId) {
+                        $q->where('user_id', $userId);
+                    } else {
+                        $q->whereRaw('1 = 0'); // força false
+                    }
+                }
+            ])
             ->when($this->search !== '', fn($q) => $q->where(
                 fn($w) => $w->where('title', 'like', "%{$this->search}%")
                     ->orWhere('description', 'like', "%{$this->search}%")
@@ -307,13 +470,9 @@ class MemeGallery extends Component
             default => $query->latest(),
         };
 
-        $messages = $this->showModal && $this->selectedMeme
-            ? Comment::with(['user', 'parent.user'])->where('meme_id', $this->selectedMeme->id)->oldest()->oldest('id')->get()
-            : collect();
-
         return view('livewire.meme-gallery', [
-            'messages' => $messages,
-            'categories' => Meme::where('status', 'approved')->distinct()->orderBy('category')->pluck('category'),
+            'messages' => $this->chatMessages,
+            'categories' => collect(Meme::CATEGORIES),
             'memes' => $query->paginate(12),
         ]);
     }

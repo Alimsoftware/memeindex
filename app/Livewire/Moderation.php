@@ -22,6 +22,15 @@ class Moderation extends Component
     public function mount(): void
     {
         $this->guard();
+        if (!$this->canApprove()) {
+            $this->tab = 'denuncias';
+        }
+    }
+
+    // Moderador comum só trata denúncias; aprovar envios exige canPostDirectly.
+    private function canApprove(): bool
+    {
+        return (bool) auth()->user()?->canPostDirectly();
     }
 
     // Toda ação confere o papel de novo: as propriedades públicas vêm do cliente.
@@ -32,7 +41,7 @@ class Moderation extends Component
 
     private function isReports(): bool
     {
-        return $this->tab === 'denuncias';
+        return $this->tab === 'denuncias' || !$this->canApprove();
     }
 
     private function queue(): Collection
@@ -47,7 +56,7 @@ class Moderation extends Component
     public function setTab(string $tab): void
     {
         $this->guard();
-        $this->tab = $tab === 'denuncias' ? 'denuncias' : 'pendentes';
+        $this->tab = $tab === 'denuncias' || !$this->canApprove() ? 'denuncias' : 'pendentes';
         $this->selectedId = null;
         $this->cancelReject();
     }
@@ -187,6 +196,7 @@ class Moderation extends Component
 
         return view('livewire.moderation', [
             'queue' => $queue,
+            'canApprove' => $this->canApprove(),
             'selected' => $selected,
             'meme' => $meme,
             'pendingCount' => Meme::whereIn('status', ['pending', 'flagged'])->count(),

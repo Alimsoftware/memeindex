@@ -41,10 +41,24 @@ return [
         'public' => [
             'driver' => 'local',
             'root' => storage_path('app/public'),
-            'url' => rtrim(env('APP_URL', 'http://localhost'), '/').'/storage',
+            'url' => rtrim(env('APP_URL', 'http://localhost'), '/') . '/storage',
             'visibility' => 'public',
             'throw' => false,
             'report' => false,
+        ],
+
+        'b2' => [
+            'driver' => 's3',
+            'key' => env('B2_KEY_ID'),
+            'secret' => env('B2_APP_KEY'),
+            'region' => env('B2_REGION'),
+            'bucket' => env('B2_BUCKET'),
+            'endpoint' => env('B2_ENDPOINT'),
+            'use_path_style_endpoint' => true, // Obrigatório para o B2
+            'signature_version' => 'v4',
+            'throw' => true, // Lança exceção em caso de erro
+            'request_checksum_calculation' => 'when_required',
+            'response_checksum_validation' => 'when_required',
         ],
 
         's3' => [

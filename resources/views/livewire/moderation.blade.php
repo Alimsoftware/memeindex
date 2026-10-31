@@ -22,7 +22,7 @@
             'other' => 'Outro',
         ];
         $presets = ['Conteúdo duplicado', 'Fora do escopo do índice', 'Baixa qualidade', 'Conteúdo proibido', 'Violação de direitos autorais'];
-        $isReports = $tab === 'denuncias';
+        $isReports = $tab === 'denuncias' || !$canApprove;
     @endphp
 
     <section class="hero">
@@ -31,8 +31,10 @@
     </section>
 
     <div class="chips" role="group" aria-label="Fila">
+        @if($canApprove)
         <button type="button" aria-pressed="{{ !$isReports ? 'true' : 'false' }}" class="chip {{ !$isReports ? 'active' : '' }}"
             wire:click="setTab('pendentes')">Pendentes <span class="chip-n">{{ $pendingCount }}</span></button>
+        @endif
         <button type="button" aria-pressed="{{ $isReports ? 'true' : 'false' }}" class="chip {{ $isReports ? 'active' : '' }}"
             wire:click="setTab('denuncias')">Denúncias <span class="chip-n">{{ $reportCount }}</span></button>
         <span class="chip-sep" aria-hidden="true"></span>
@@ -58,7 +60,7 @@
                         wire:click="select({{ $item->id }})" wire:key="q-{{ $tab }}-{{ $item->id }}"
                         aria-current="{{ $selected && $selected->id === $item->id ? 'true' : 'false' }}"
                         @click="if (innerWidth < 900) $nextTick(() => $refs.detail?.scrollIntoView({ behavior: 'smooth', block: 'start' }))">
-                        <img src="{{ Storage::url($m->image_path) }}" alt="" loading="lazy" onerror="this.classList.add('img-broken')">
+                        <img src="{{ $m->image_url }}" alt="" loading="lazy" onerror="this.classList.add('img-broken')">
                         <span class="mod-item-text">
                             <strong>{{ $m->title }}</strong>
                             <small>
@@ -74,7 +76,7 @@
             <section class="mod-detail" x-ref="detail" aria-label="Pré-visualização">
                 @if($meme)
                     <div class="mod-media">
-                        <img src="{{ Storage::url($meme->image_path) }}" alt="{{ $meme->title }}">
+                        <img src="{{ $meme->image_url }}" alt="{{ $meme->title }}">
                     </div>
 
                     <div class="mod-info">

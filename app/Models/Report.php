@@ -10,6 +10,8 @@ class Report extends Model
 {
     use HasFactory;
 
+    // app/Models/Report.php
+    public const REASONS = ['inappropriate', 'duplicated', 'offensive', 'spam', 'copyright', 'other'];
     protected $fillable = [
         'user_id',
         'meme_id',

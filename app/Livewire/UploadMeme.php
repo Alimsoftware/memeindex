@@ -24,7 +24,7 @@ class UploadMeme extends Component
         return [
             'image' => 'required|image|mimes:jpg,jpeg,png,gif,webp|max:5120',
             'title' => 'required|string|min:3|max:200',
-            'category' => 'required|string|max:40',
+            'category' => 'required|in:' . implode(',', Meme::CATEGORIES),
             'description' => 'nullable|string|max:1000',
         ];
     }
@@ -50,6 +50,7 @@ class UploadMeme extends Component
         // depois de entrar/cadastrar, volta para cá
         if (!auth()->check()) {
             session()->put('url.intended', route('upload'));
+            $this->redirectRoute('login');
         }
     }
 
@@ -62,22 +63,48 @@ class UploadMeme extends Component
     {
         abort_unless(auth()->check(), 403);
 
+        $user = auth()->user();
+
+        // Limite de 5 memes por dia; rejeitados não contam
+        $memesHoje = Meme::where('user_id', $user->id)
+            ->where('status', '!=', 'rejected')
+            ->whereDate('created_at', today())
+            ->count();
+
+        if ($memesHoje >= 5) {
+            $this->addError('image', 'Você atingiu o limite de 5 envios por dia.');
+            return;
+        }
+
         $data = $this->validate();
 
-        $path = $this->image->store('memes', 'public');
+        try {
+            $path = $this->image->store('memes', 'b2');
+        } catch (\Exception $e) {
+            \Log::error('Falha no upload B2: ' . $e->getMessage());
+            $this->addError('image', 'Falha ao enviar a imagem. Tente novamente.');
+            return;
+        }
+
+        $slug = Str::slug($data['title']) ?: 'meme';
+        $canPostDirectly = $user->canPostDirectly();
 
         Meme::create([
-            'user_id' => auth()->id(),
+            'user_id' => $user->id,
             'title' => trim($data['title']),
             // o slug é único: o sufixo evita colisão entre títulos iguais
-            'slug' => Str::slug($data['title']) . '-' . Str::lower(Str::random(6)),
+            'slug' => $slug . '-' . Str::lower(Str::random(6)),
             'image_path' => $path,
             'description' => trim($data['description'] ?? '') ?: null,
-            'category' => Str::slug($data['category']) ?: 'geral',
-            'is_gif' => $this->image->getMimeType() === 'image/gif',
-            'status' => 'pending',
+            'category' => $data['category'],
+            'is_gif' => $this->image?->getMimeType() === 'image/gif',
+            'status' => $canPostDirectly ? 'approved' : 'pending',
+            'published_at' => $canPostDirectly ? now() : null,
         ]);
 
+        $user->increment('memes_submitted');
+
+        $this->reset('image', 'title', 'description', 'category');
         $this->sent = true;
     }
 
@@ -91,7 +118,7 @@ class UploadMeme extends Component
     public function render()
     {
         return view('livewire.upload-meme', [
-            'categories' => Meme::where('status', 'approved')->distinct()->orderBy('category')->pluck('category'),
+            'categories' => Meme::CATEGORIES,
         ]);
     }
 }

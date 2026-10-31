@@ -13,6 +13,7 @@ use Filament\Actions\EditAction;
 use Filament\Forms\Components\FileUpload;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
+use Filament\Forms\Components\ToggleButtons;
 use Filament\Resources\Resource;
 use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
@@ -27,6 +28,17 @@ class MemeResource extends Resource
 {
     protected static ?string $model = Meme::class;
 
+    // só o dono exclui; admins e moderadores apenas editam
+    public static function canDelete(\Illuminate\Database\Eloquent\Model $record): bool
+    {
+        return (bool) auth()->user()?->isOwner();
+    }
+
+    public static function canDeleteAny(): bool
+    {
+        return (bool) auth()->user()?->isOwner();
+    }
+
     protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedRectangleStack;
 
     protected static ?string $recordTitleAttribute = 'title';
@@ -40,23 +52,39 @@ class MemeResource extends Resource
                     ->required()
                     ->maxLength(255)
                     ->live(onBlur: true)
-                    ->afterStateUpdated(fn (string $operation, string $state, Set $set) =>
-                     $operation === 'create' ? $set('slug', Str::slug($state)) : null
-                    ),
+                    ->afterStateUpdated(function (string $operation, string $state, Set $set) {
+                        if ($operation === 'create') {
+                            $set('slug', Str::slug($state) . '-' . Str::lower(Str::random(6)));
+                        }
+                    }),
+                TextInput::make('description')
+                    ->label('Descrição')
+                    ->maxLength(1000),
+
+                Select::make('category')
+                    ->label('Categoria')
+                    ->options(array_combine(Meme::CATEGORIES, Meme::CATEGORIES))
+                    ->required()
+                    ->default('geral'),
                 TextInput::make('slug')
                     ->label('Slug')
                     ->required()
                     ->maxLength(255)
                     ->unique(Meme::class, 'slug', ignoreRecord: true),
-                    //->disabled(fn (string $operation) => $operation === 'edit'),
+                //->disabled(fn (string $operation) => $operation === 'edit'),
 
                 FileUpload::make('image_path')
                     ->label('Imagem do Meme')
                     ->image()
-                    ->disk('public')
+                    ->disk('b2')
                     ->directory('memes')
-                    ->visibility('public') // Marca permissão de leitura
-                    ->required(),
+                   // ->visibility('private') // Marca permissão de leitura
+                    ->required()
+                    ->dehydrated(fn($state) => filled($state)) // só envia se tiver valor
+                    ->afterStateHydrated(function (FileUpload $component, $state) {
+                        // No edit, mostra a imagem existente sem re-upload
+                        $component->state($state);
+                    }),
 
                 Select::make('status')
                     ->label('Status de Moderação')
@@ -65,13 +93,13 @@ class MemeResource extends Resource
                         'approved' => 'Aprovado',
                         'rejected' => 'Rejeitado',
                     ])
-                    ->default('pending')
+                    ->default('approved')
                     ->required(),
 
                 Select::make('user_id')
                     ->label('Autor')
                     ->relationship('user', 'name')
-                    ->default(fn () => auth()->id())
+                    ->default(fn() => auth()->id())
                     ->searchable()
                     ->required(),
             ]);
@@ -81,8 +109,11 @@ class MemeResource extends Resource
     {
         return $table
             ->columns([
-                ImageColumn::make('image_path')
-                    ->label('Imagem'),
+                ImageColumn::make('image_url')
+                    ->label('Imagem')
+                    ->getStateUsing(fn(Meme $record) => $record->image_url)
+                    ->height(60)
+                    ->width(60),
 
                 TextColumn::make('title')
                     ->label('Título')

@@ -38,7 +38,7 @@
     <div class="my-list">
         @forelse($memes as $meme)
             <article class="my-item" wire:key="my-{{ $meme->id }}">
-                <img class="my-thumb" src="{{ Storage::url($meme->image_path) }}" alt="{{ $meme->title }}" loading="lazy"
+                <img class="my-thumb" src="{{ $meme->image_url }}" alt="{{ $meme->title }}" loading="lazy"
                     onerror="this.classList.add('img-broken')">
                 <div class="my-body">
                     <div class="my-top">
